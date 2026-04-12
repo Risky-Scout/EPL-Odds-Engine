@@ -159,7 +159,16 @@ def _fit_single_model(name: str, train_df: pd.DataFrame, xi: float) -> Any:
 
 
 def _predict_model_grid(model: Any, home_team: str, away_team: str, max_goals: int) -> tuple[np.ndarray, Dict[str, Any]]:
-    probs = model.predict(home_team, away_team)
+    try:
+        probs = model.predict(home_team, away_team)
+    except ValueError as e:
+        msg = str(e)
+        if "Both teams must have been in the training data." in msg:
+            raise RuntimeError(
+                f"UNSEEN_TEAM_IN_FOLD: {home_team} vs {away_team}. "
+                "Fail-closed is enabled. No synthetic fallback is allowed."
+            ) from e
+        raise
     grid, meta = _extract_joint_pmf(probs, max_goals)
     home_exp, away_exp = goal_expectations(grid)
     meta.update({
