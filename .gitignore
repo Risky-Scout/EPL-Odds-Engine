@@ -39,3 +39,9 @@ sample_outputs/generated/
 
 # OS
 .DS_Store
+
+.env.local
+configs/local.mac.yaml
+.env.modes
+workspace/
+.venv/
