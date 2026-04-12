@@ -121,12 +121,18 @@ def _fit_single_model(name: str, train_df: pd.DataFrame, xi: float) -> Any:
     pb = _require_penaltyblog()
     class_name = MODEL_CLASS_NAMES[name]
     model_cls = getattr(pb.models, class_name)
-    weights = build_time_weights(train_df["date"], xi)
+
+    goals_home = np.ascontiguousarray(train_df["goals_home"].to_numpy(dtype=np.int64, copy=True))
+    goals_away = np.ascontiguousarray(train_df["goals_away"].to_numpy(dtype=np.int64, copy=True))
+    team_home = np.ascontiguousarray(train_df["team_home"].astype(str).to_numpy(copy=True))
+    team_away = np.ascontiguousarray(train_df["team_away"].astype(str).to_numpy(copy=True))
+    weights = np.ascontiguousarray(np.array(build_time_weights(train_df["date"], xi), dtype=float, copy=True))
+
     model = model_cls(
-        train_df["goals_home"],
-        train_df["goals_away"],
-        train_df["team_home"],
-        train_df["team_away"],
+        goals_home,
+        goals_away,
+        team_home,
+        team_away,
         weights,
     )
     model.fit()
