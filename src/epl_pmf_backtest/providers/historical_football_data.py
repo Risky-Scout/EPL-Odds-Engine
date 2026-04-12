@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Iterable, List
+import re
 
 import pandas as pd
 
@@ -45,6 +46,11 @@ def _select_three_way_odds(df: pd.DataFrame, prefixes: Iterable[str]) -> pd.Data
     return out
 
 
+def _slugify_league(league: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "_", str(league).lower()).strip("_")
+    return slug or "league"
+
+
 class HistoricalFootballDataProvider:
     """Historical EPL data provider using Penaltyblog's football-data.co.uk scraper."""
 
@@ -55,7 +61,7 @@ class HistoricalFootballDataProvider:
         self.storage_root = storage_root
 
     def fetch(self, use_cache: bool = True) -> pd.DataFrame:
-        curated_path = self.storage_root / "curated" / "historical_matches.csv"
+        curated_path = self.storage_root / "curated" / f"historical_matches__{_slugify_league(self.league)}.csv"
         if use_cache and curated_path.exists():
             df = pd.read_csv(curated_path, parse_dates=["date"])
             df = df.sort_values("date").reset_index(drop=True)

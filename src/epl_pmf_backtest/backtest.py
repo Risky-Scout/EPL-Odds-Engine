@@ -74,6 +74,18 @@ def sync_historical(config: ProjectConfig) -> Path:
     df = provider.fetch(use_cache=False)
     out_path = config.storage_root / "curated" / "historical_matches.csv"
     write_csv(out_path, df)
+
+    priors_cfg = config.raw.get("providers", {}).get("promoted_priors", {})
+    if priors_cfg.get("enabled", False):
+        lower_provider = HistoricalFootballDataProvider(
+            league=priors_cfg.get("lower_division_league", "ENG Championship"),
+            seasons=priors_cfg.get("seasons", historical.get("seasons", [])),
+            odds_priority=[],
+            storage_root=config.storage_root,
+        )
+        lower_df = lower_provider.fetch(use_cache=False)
+        lower_path = config.storage_root / "curated" / "lower_division_matches.csv"
+        write_csv(lower_path, lower_df)
     return out_path
 
 
@@ -88,6 +100,18 @@ def run_backtest(config: ProjectConfig) -> Path:
         storage_root=config.storage_root,
     )
     matches = provider.fetch(use_cache=True)
+    priors_cfg = config.raw.get("providers", {}).get("promoted_priors", {})
+    lower_division_df = None
+    if priors_cfg.get("enabled", False):
+        lower_provider = HistoricalFootballDataProvider(
+            league=priors_cfg.get("lower_division_league", "ENG Championship"),
+            seasons=priors_cfg.get("seasons", historical.get("seasons", [])),
+            odds_priority=[],
+            storage_root=config.storage_root,
+        )
+        lower_division_df = lower_provider.fetch(use_cache=True)
+        write_csv(config.storage_root / "curated" / "lower_division_matches.csv", lower_division_df)
+
     features = build_feature_table(matches)
     features_path = config.storage_root / "features" / "historical_features.csv"
     write_csv(features_path, features)
@@ -121,6 +145,11 @@ def run_backtest(config: ProjectConfig) -> Path:
             ensemble_softmax_temperature=float(model_cfg.get("ensemble_softmax_temperature", 0.5)),
             calibration_temperatures=model_cfg.get("calibration_temperatures", [1.0]),
             pi_blend_grid=model_cfg.get("pi_blend_grid", [0.0]),
+            lower_division_df=lower_division_df,
+            top_league=str(config.league),
+            lower_division_league=str(priors_cfg.get("lower_division_league", "ENG Championship")),
+            prior_matches_for_transition=int(priors_cfg.get("prior_matches_for_transition", 10)),
+            strength_shrink_matches=float(priors_cfg.get("strength_shrink_matches", 8.0)),
         )
 
         fold_rows: List[Dict[str, Any]] = []
@@ -134,6 +163,12 @@ def run_backtest(config: ProjectConfig) -> Path:
                 kickoff_utc=pd.Timestamp(row.date).isoformat(),
                 match_id=str(row.match_id),
                 max_goals=int(model_cfg.get("max_goals", 8)),
+                match_season=str(row.season),
+                lower_division_df=lower_division_df,
+                top_league=str(config.league),
+                lower_division_league=str(priors_cfg.get("lower_division_league", "ENG Championship")),
+                prior_matches_for_transition=int(priors_cfg.get("prior_matches_for_transition", 10)),
+                strength_shrink_matches=float(priors_cfg.get("strength_shrink_matches", 8.0)),
             )
 
             grid = np.asarray(forecast["joint_pmf"], dtype=float)
@@ -172,6 +207,7 @@ def run_backtest(config: ProjectConfig) -> Path:
                 "pi_home_win": forecast["pi_prior_1x2"]["home"],
                 "pi_draw": forecast["pi_prior_1x2"]["draw"],
                 "pi_away_win": forecast["pi_prior_1x2"]["away"],
+                "forecast_source": forecast.get("forecast_source", "ensemble"),
             }
 
             if pd.notna(row.odds_home) and pd.notna(row.odds_draw) and pd.notna(row.odds_away):
