@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.dylib
+.python-version
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Local env / secrets
+.env
+.env.local
+.env.*
+!.env.example
+
+# Local overlay
+configs/local.mac.yaml
+docs/LOCAL_MAC_WORKFLOW.md
+scripts/mac_local_setup.sh
+
+# Workspace outputs
+workspace/
+data/
+cache/
+reports/
+figures/
+exports/
+sample_outputs/generated/
+*.parquet
+*.feather
+*.pickle
+*.pkl
+
+# Jupyter
+.ipynb_checkpoints/
+
+# OS
+.DS_Store

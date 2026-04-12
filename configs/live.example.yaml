@@ -1,0 +1,30 @@
+project:
+  name: epl_joint_pmf_live
+  league: ENG Premier League
+  random_seed: 42
+  timezone: UTC
+  model_version: "0.3.0"
+
+storage:
+  root_dir: ${EPL_PMF_STORAGE_ROOT}
+
+providers:
+  live:
+    kind: bdl_epl
+    api_key_env: BDL_API_KEY
+    base_url: https://api.balldontlie.io/epl/v2
+    rate_limit_per_minute: 480
+    per_page: 100
+    cache_ttl_seconds: 15
+
+model:
+  max_goals: 8
+
+live:
+  refresh_seconds: 15
+  match_ids: []
+  default_total_match_minutes: 95
+  red_card_multiplier: 0.12
+  shot_pressure_weight: 0.01
+  possession_weight: 0.002
+  publish_format: wizardofodds

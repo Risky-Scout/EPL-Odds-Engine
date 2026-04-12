@@ -1,0 +1,78 @@
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>EPL Joint PMF Walk-Forward Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin: 32px; color: #111; }
+    h1, h2 { margin-bottom: 0.3rem; }
+    .meta { color: #555; margin-bottom: 1.5rem; }
+    .grid { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 20px; }
+    .card { border: 1px solid #ddd; border-radius: 14px; padding: 14px; }
+    img { max-width: 100%; border-radius: 10px; border: 1px solid #eee; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 6px; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { text-align: left; border-bottom: 1px solid #eee; padding: 6px 8px; }
+  </style>
+</head>
+<body>
+  <h1>EPL Joint PMF Walk-Forward Report</h1>
+  <div class="meta">Generated 2026-04-11T20:44:18.808459+00:00</div>
+
+  <div class="card">
+    <h2>Overall summary</h2>
+    <table>
+      
+      <tr><th>run_id</th><td>sample_run</td></tr>
+      
+      <tr><th>n_folds</th><td>6</td></tr>
+      
+      <tr><th>n_matches</th><td>150</td></tr>
+      
+      <tr><th>joint_log_loss</th><td>2.9691181606012758</td></tr>
+      
+      <tr><th>n_bets</th><td>89</td></tr>
+      
+      <tr><th>avg_bet_edge</th><td>0.05552259681691421</td></tr>
+      
+      <tr><th>avg_stake_fraction</th><td>0.019999999999999997</td></tr>
+      
+      <tr><th>generated_at_utc</th><td>2026-04-11T20:44:15.630642+00:00</td></tr>
+      
+      <tr><th>note</th><td>Bundled sample run for report and visual testing. Replace with a real historical walk-forward run.</td></tr>
+      
+    </table>
+  </div>
+
+  <h2>Figures</h2>
+  <div class="grid">
+    
+    <div class="card">
+      <h3>Rolling joint log loss</h3>
+      <img src="/mnt/data/epl_joint_pmf_github_repo/workspace/epl_joint_pmf/figures/rolling_joint_log_loss.png" alt="Rolling joint log loss" />
+    </div>
+    
+    <div class="card">
+      <h3>Calibration</h3>
+      <img src="/mnt/data/epl_joint_pmf_github_repo/workspace/epl_joint_pmf/figures/calibration_home_win.png" alt="Calibration" />
+    </div>
+    
+    <div class="card">
+      <h3>Model vs market</h3>
+      <img src="/mnt/data/epl_joint_pmf_github_repo/workspace/epl_joint_pmf/figures/model_vs_market_home.png" alt="Model vs market" />
+    </div>
+    
+    <div class="card">
+      <h3>Equity curve</h3>
+      <img src="/mnt/data/epl_joint_pmf_github_repo/workspace/epl_joint_pmf/figures/equity_curve.png" alt="Equity curve" />
+    </div>
+    
+    <div class="card">
+      <h3>Joint PMF example</h3>
+      <img src="/mnt/data/epl_joint_pmf_github_repo/workspace/epl_joint_pmf/figures/joint_pmf_example.png" alt="Joint PMF example" />
+    </div>
+    
+  </div>
+</body>
+</html>
