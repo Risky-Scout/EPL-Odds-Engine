@@ -45,3 +45,5 @@ configs/local.mac.yaml
 .env.modes
 workspace/
 .venv/
+
+*.egg-info/
