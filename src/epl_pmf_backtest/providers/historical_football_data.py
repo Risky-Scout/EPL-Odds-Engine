@@ -119,7 +119,7 @@ class HistoricalFootballDataProvider:
             ]
             frames.append(df[keep].copy())
 
-        out = pd.concat(frames, ignore_index=True).copy()
+        out = pd.concat(frames, ignore_index=True).copy().copy()
         out["date"] = pd.to_datetime(out["date"], utc=True, errors="coerce")
         out["goals_home"] = pd.to_numeric(out["goals_home"], errors="coerce")
         out["goals_away"] = pd.to_numeric(out["goals_away"], errors="coerce")
