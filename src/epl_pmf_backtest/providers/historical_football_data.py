@@ -5,6 +5,10 @@ from typing import Iterable, List
 import re
 
 import pandas as pd
+import warnings
+from pandas.errors import PerformanceWarning
+
+warnings.filterwarnings("ignore", category=PerformanceWarning, module=r"penaltyblog\\.scrapers\\..*")
 
 from ..storage import write_csv
 
@@ -75,7 +79,7 @@ class HistoricalFootballDataProvider:
         frames = []
         for season in self.seasons:
             scraper = pb.scrapers.FootballData(self.league, season)
-            raw = scraper.get_fixtures()
+            raw = scraper.get_fixtures().copy()
             df = raw.copy()
             lower = {c: str(c).lower() for c in df.columns}
             df = df.rename(columns=lower)
@@ -115,7 +119,7 @@ class HistoricalFootballDataProvider:
             ]
             frames.append(df[keep].copy())
 
-        out = pd.concat(frames, ignore_index=True)
+        out = pd.concat(frames, ignore_index=True).copy()
         out["date"] = pd.to_datetime(out["date"], utc=True, errors="coerce")
         out["goals_home"] = pd.to_numeric(out["goals_home"], errors="coerce")
         out["goals_away"] = pd.to_numeric(out["goals_away"], errors="coerce")
