@@ -50,7 +50,11 @@ def _summarize_fold(predictions: pd.DataFrame) -> Dict[str, Any]:
         "draw_brier": float(np.mean((predictions["model_draw"] - predictions["actual_draw"]) ** 2)),
         "away_brier": float(np.mean((predictions["model_away_win"] - predictions["actual_away_win"]) ** 2)),
     }
-    if "bet_edge" in predictions and predictions["bet_edge"].notna().any():
+    betting_enabled = True
+    if "__betting_enabled__" in predictions.columns and len(predictions):
+        betting_enabled = bool(predictions["__betting_enabled__"].iloc[0])
+
+    if betting_enabled and "bet_edge" in predictions and predictions["bet_edge"].notna().any():
         bet_mask = predictions["bet_edge"].notna()
         out["n_bets"] = int(bet_mask.sum())
         out["avg_bet_edge"] = float(predictions.loc[bet_mask, "bet_edge"].mean())
@@ -89,6 +93,18 @@ def sync_historical(config: ProjectConfig) -> Path:
     return out_path
 
 
+
+def _force_disable_bets(predictions: pd.DataFrame) -> pd.DataFrame:
+    predictions = predictions.copy()
+    for col in ["bet_market", "bet_selection"]:
+        if col in predictions.columns:
+            predictions[col] = None
+    for col in ["bet_edge", "bet_stake_fraction", "bet_decimal_odds", "bet_result_profit_per_unit"]:
+        if col in predictions.columns:
+            predictions[col] = np.nan
+    predictions["__betting_enabled__"] = False
+    return predictions
+
 def run_backtest(config: ProjectConfig) -> Path:
     ensure_dirs(config.storage_root)
 
@@ -119,6 +135,8 @@ def run_backtest(config: ProjectConfig) -> Path:
     wf = config.section("walkforward")
     model_cfg = config.section("model")
     betting_cfg = config.section("betting")
+    betting_enabled = bool(betting_cfg.get("enabled", True)) and bool(betting_cfg.get("markets", []))
+ 
 
     windows = make_walkforward_windows(
         n_matches=len(features),
@@ -232,22 +250,30 @@ def run_backtest(config: ProjectConfig) -> Path:
                     max_decimal_odds=float(betting_cfg.get("max_decimal_odds", 10.0)),
                     kelly_fraction=float(betting_cfg.get("kelly_fraction", 0.2)),
                 )
-                if bets:
-                    best = bets[0]
-                    record["bet_market"] = best["market"]
-                    record["bet_selection"] = best["selection"]
-                    record["bet_edge"] = best["edge"]
-                    record["bet_stake_fraction"] = best["stake_fraction"]
-                    record["bet_decimal_odds"] = best["decimal_odds"]
-                    record["bet_result_profit_per_unit"] = (
-                        best["decimal_odds"] - 1.0
-                        if (
-                            (best["selection"] == "home" and actual_home > actual_away)
-                            or (best["selection"] == "draw" and actual_home == actual_away)
-                            or (best["selection"] == "away" and actual_home < actual_away)
+                if betting_enabled:
+                    if bets:
+                        best = bets[0]
+                        record["bet_market"] = best["market"]
+                        record["bet_selection"] = best["selection"]
+                        record["bet_edge"] = best["edge"]
+                        record["bet_stake_fraction"] = best["stake_fraction"]
+                        record["bet_decimal_odds"] = best["decimal_odds"]
+                        record["bet_result_profit_per_unit"] = (
+                            best["decimal_odds"] - 1.0
+                            if (
+                                (best["selection"] == "home" and actual_home > actual_away)
+                                or (best["selection"] == "draw" and actual_home == actual_away)
+                                or (best["selection"] == "away" and actual_home < actual_away)
+                            )
+                            else -1.0
                         )
-                        else -1.0
-                    )
+                    else:
+                        record["bet_market"] = None
+                        record["bet_selection"] = None
+                        record["bet_edge"] = np.nan
+                        record["bet_stake_fraction"] = np.nan
+                        record["bet_decimal_odds"] = np.nan
+                        record["bet_result_profit_per_unit"] = np.nan
                 else:
                     record["bet_market"] = None
                     record["bet_selection"] = None
@@ -276,6 +302,13 @@ def run_backtest(config: ProjectConfig) -> Path:
         fold_summaries.append(fold_summary)
 
     predictions_df = pd.DataFrame(all_rows)
+    if not betting_enabled:
+        for col in ["bet_market", "bet_selection"]:
+            if col in predictions_df.columns:
+                predictions_df[col] = None
+        for col in ["bet_edge", "bet_stake_fraction", "bet_decimal_odds", "bet_result_profit_per_unit"]:
+            if col in predictions_df.columns:
+                predictions_df[col] = np.nan
     predictions_path = config.storage_root / "backtests" / f"{run_id}_predictions.csv"
     folds_path = config.storage_root / "backtests" / f"{run_id}_folds.json"
     summary_path = config.storage_root / "backtests" / f"{run_id}_summary.json"
