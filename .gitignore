@@ -51,3 +51,18 @@ workspace/
 checkpoints/
 configs/*.bak.*
 src/epl_pmf_backtest/backtest.py.bak_*
+
+# local runtime
+.venv/
+.env.local
+.env.modes
+workspace/
+checkpoints/
+
+# local backups
+configs/*.bak.*
+src/**/*.bak_*
+src/epl_pmf_backtest/backtest.py.bak_*
+
+# mac noise
+.DS_Store
