@@ -66,3 +66,8 @@ src/epl_pmf_backtest/backtest.py.bak_*
 
 # mac noise
 .DS_Store
+
+workspace/
+checkpoints/
+configs/*.bak.*
+src/**/*.bak_*
