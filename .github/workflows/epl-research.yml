@@ -1,0 +1,70 @@
+name: EPL Research
+
+on:
+  push:
+    branches:
+      - feat/market-residual-anchor
+      - feat/promoted-team-priors-and-production-split
+  workflow_dispatch:
+    inputs:
+      config_path:
+        description: "Config file to run"
+        required: true
+        default: "configs/backtest.nobet.sharp.yaml"
+      storage_root:
+        description: "Runner-local storage root"
+        required: true
+        default: "workspace_ci/epl_joint_pmf_backtest_nobet_sharp"
+      run_report:
+        description: "Run report after backtest"
+        required: true
+        default: "true"
+
+jobs:
+  research:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      PYTHONUNBUFFERED: "1"
+      EPL_PMF_STORAGE_ROOT: ${{ github.workspace }}/${{ inputs.storage_root || 'workspace_ci/epl_joint_pmf_backtest_nobet_sharp' }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+
+      - name: Sync historical
+        run: |
+          epl-pmf sync-historical --config "${{ inputs.config_path || 'configs/backtest.nobet.sharp.yaml' }}"
+
+      - name: Backtest
+        run: |
+          epl-pmf backtest --config "${{ inputs.config_path || 'configs/backtest.nobet.sharp.yaml' }}"
+
+      - name: Report
+        if: ${{ inputs.run_report != 'false' }}
+        run: |
+          epl-pmf report --config "${{ inputs.config_path || 'configs/backtest.nobet.sharp.yaml' }}"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: epl-research-${{ github.run_id }}
+          path: |
+            ${{ env.EPL_PMF_STORAGE_ROOT }}/backtests
+            ${{ env.EPL_PMF_STORAGE_ROOT }}/reports
+            ${{ env.EPL_PMF_STORAGE_ROOT }}/figures
+            ${{ env.EPL_PMF_STORAGE_ROOT }}/curated
+            ${{ env.EPL_PMF_STORAGE_ROOT }}/features
+            ${{ github.workspace }}/workspace/diagnostics
+          retention-days: 14

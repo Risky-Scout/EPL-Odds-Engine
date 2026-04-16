@@ -71,3 +71,8 @@ workspace/
 checkpoints/
 configs/*.bak.*
 src/**/*.bak_*
+
+.github/*.local.yml
+workspace/
+workspace_ci/
+checkpoints/
