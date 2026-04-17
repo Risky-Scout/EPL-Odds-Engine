@@ -1,0 +1,74 @@
+project:
+  name: epl_joint_pmf
+  league: ENG Premier League
+  random_seed: 42
+  timezone: UTC
+  model_version: 0.3.0
+
+storage:
+  root_dir: workspace_ci/epl_market_residual_nobet_sharp
+
+providers:
+  historical:
+    kind: penaltyblog_football_data
+    seasons:
+      - "2018-2019"
+      - "2019-2020"
+      - "2020-2021"
+      - "2021-2022"
+      - "2022-2023"
+      - "2023-2024"
+      - "2024-2025"
+      - "2025-2026"
+    odds_priority: ["ps", "p"]
+    cache_format: csv
+  promoted_priors:
+    enabled: true
+    lower_division_league: ENG Championship
+    seasons:
+      - "2017-2018"
+      - "2018-2019"
+      - "2019-2020"
+      - "2020-2021"
+      - "2021-2022"
+      - "2022-2023"
+      - "2023-2024"
+      - "2024-2025"
+      - "2025-2026"
+    prior_matches_for_transition: 10
+    strength_shrink_matches: 8.0
+
+walkforward:
+  train_min_matches: 760
+  validation_matches: 190
+  test_step_matches: 50
+  retrain_frequency_matches: 50
+  min_odds_matches_for_betting: 25
+
+model:
+  max_goals: 8
+  time_decay_xi: 0.001
+  base_models: ["dixon_coles", "bivariate_poisson", "zero_inflated_poisson", "negative_binomial", "weibull_copula"]
+  ensemble_softmax_temperature: 0.5
+  pi_blend_grid: [0.0, 0.05, 0.1, 0.15, 0.2, 0.25]
+  calibration_temperatures: [0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3]
+
+betting:
+  enabled: false
+  no_vig_method: proportional
+  min_edge: 0.025
+  min_decimal_odds: 1.2
+  max_decimal_odds: 10.0
+  kelly_fraction: 0.2
+  markets: []
+
+reporting:
+  title: EPL Market Residual No-Bet Report
+  output_basename: epl_market_residual_nobet
+
+mode: historical_backtest
+
+forecasting:
+  skip_unseen_teams: true
+  require_complete_market_data: true
+  require_complete_inputs: true
