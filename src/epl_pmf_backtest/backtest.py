@@ -183,6 +183,11 @@ def run_backtest(config: ProjectConfig) -> Path:
                 max_goals=int(model_cfg.get("max_goals", 8)),
                 match_season=str(row.season),
                 lower_division_df=lower_division_df,
+                market_odds={
+                    "odds_home": float(row.odds_home) if pd.notna(row.odds_home) else None,
+                    "odds_draw": float(row.odds_draw) if pd.notna(row.odds_draw) else None,
+                    "odds_away": float(row.odds_away) if pd.notna(row.odds_away) else None,
+                },
                 top_league=str(config.league),
                 lower_division_league=str(priors_cfg.get("lower_division_league", "ENG Championship")),
                 prior_matches_for_transition=int(priors_cfg.get("prior_matches_for_transition", 10)),
@@ -225,6 +230,8 @@ def run_backtest(config: ProjectConfig) -> Path:
                 "pi_home_win": forecast["pi_prior_1x2"]["home"],
                 "pi_draw": forecast["pi_prior_1x2"]["draw"],
                 "pi_away_win": forecast["pi_prior_1x2"]["away"],
+                "market_regime": forecast.get("market_regime"),
+                "market_blend_weight": forecast.get("market_blend_weight"),
                 "forecast_source": forecast.get("forecast_source", "ensemble"),
             }
 

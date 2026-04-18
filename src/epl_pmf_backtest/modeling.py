@@ -27,6 +27,7 @@ class EnsembleFit:
     model_weights: Dict[str, float]
     calibration_temperature: float
     pi_blend_weight: float
+    market_regime_blend_weights: Dict[str, float]
     diagnostics: Dict[str, Any]
 
 
@@ -233,6 +234,31 @@ def _pi_prior_for_fixture(
     }
 
 
+def _market_prior_from_odds(odds_home: float, odds_draw: float, odds_away: float) -> Dict[str, float]:
+    from epl_pmf_backtest.markets import three_way_implied_probs_decimal
+
+    fair = three_way_implied_probs_decimal(
+        float(odds_home),
+        float(odds_draw),
+        float(odds_away),
+        method="proportional",
+    )
+    return {
+        "home": float(fair["home"]),
+        "draw": float(fair["draw"]),
+        "away": float(fair["away"]),
+    }
+
+
+def _market_regime_from_prior(market_prior: Dict[str, float]) -> str:
+    diff = float(market_prior["home"]) - float(market_prior["away"])
+    if diff >= 0.18:
+        return "home_fav"
+    if diff <= -0.18:
+        return "away_fav"
+    return "balanced"
+
+
 def tilt_grid_to_1x2(grid: np.ndarray, target_probs: Dict[str, float]) -> np.ndarray:
     out = np.array(grid, dtype=float, copy=True)
     current = one_x_two_from_grid(out)
@@ -289,11 +315,18 @@ def fit_ensemble(
     per_model_val_losses = {name: [] for name in model_names}
     val_predictions: Dict[str, List[np.ndarray]] = {name: [] for name in model_names}
     val_pi_priors: List[Dict[str, float]] = []
+    val_market_priors: List[Dict[str, float]] = []
+    val_market_regimes: List[str] = []
     val_outcomes: List[Tuple[int, int]] = []
 
     for row in validation_df.itertuples(index=False):
         home = str(row.team_home)
         away = str(row.team_away)
+        if pd.notna(row.odds_home) and pd.notna(row.odds_draw) and pd.notna(row.odds_away):
+            market_prior = _market_prior_from_odds(float(row.odds_home), float(row.odds_draw), float(row.odds_away))
+        else:
+            market_prior = {"home": 1.0 / 3.0, "draw": 1.0 / 3.0, "away": 1.0 / 3.0}
+        market_regime = _market_regime_from_prior(market_prior)
         needs_promoted_prior = home not in seen_teams or away not in seen_teams
 
         if needs_promoted_prior:
@@ -311,6 +344,8 @@ def fit_ensemble(
             for name in model_names:
                 val_predictions[name].append(prior_grid)
             val_pi_priors.append(one_x_two_from_grid(prior_grid))
+            val_market_priors.append(market_prior)
+            val_market_regimes.append(market_regime)
             val_outcomes.append((int(row.goals_home), int(row.goals_away)))
             continue
 
@@ -340,6 +375,8 @@ def fit_ensemble(
             top_league=top_league,
             lower_division_league=lower_division_league,
         ))
+        val_market_priors.append(market_prior)
+        val_market_regimes.append(market_regime)
         val_outcomes.append((int(row.goals_home), int(row.goals_away)))
 
     avg_losses = {
@@ -359,30 +396,48 @@ def fit_ensemble(
             grid += model_weights[name] * val_predictions[name][i]
         raw_ensemble_grids.append(clip_grid(grid))
 
+    market_blend_grid = [0.0, 0.25, 0.5, 0.75, 1.0]
+    best_market_weights = {"home_fav": 0.0, "away_fav": 0.0, "balanced": 0.0}
     best_pi_blend = 0.0
     best_temperature = 1.0
     best_loss = float("inf")
-    for pi_blend in pi_blend_grid:
-        tilted = [
-            blend_grids(grid, tilt_grid_to_1x2(grid, pi_prior), float(pi_blend))
-            for grid, pi_prior in zip(raw_ensemble_grids, val_pi_priors)
-        ]
-        temp, loss = fit_grid_temperature(tilted, val_outcomes, calibration_temperatures)
-        if loss < best_loss:
-            best_loss = loss
-            best_temperature = temp
-            best_pi_blend = float(pi_blend)
+    for w_home in market_blend_grid:
+        for w_away in market_blend_grid:
+            for w_bal in market_blend_grid:
+                market_weights = {
+                    "home_fav": float(w_home),
+                    "away_fav": float(w_away),
+                    "balanced": float(w_bal),
+                }
+                market_adjusted = []
+                for grid, market_prior, regime in zip(raw_ensemble_grids, val_market_priors, val_market_regimes):
+                    market_tilted = tilt_grid_to_1x2(grid, market_prior)
+                    market_adjusted.append(blend_grids(grid, market_tilted, market_weights[regime]))
+
+                for pi_blend in pi_blend_grid:
+                    tilted = [
+                        blend_grids(grid, tilt_grid_to_1x2(grid, pi_prior), float(pi_blend))
+                        for grid, pi_prior in zip(market_adjusted, val_pi_priors)
+                    ]
+                    temp, loss = fit_grid_temperature(tilted, val_outcomes, calibration_temperatures)
+                    if loss < best_loss:
+                        best_loss = loss
+                        best_temperature = temp
+                        best_pi_blend = float(pi_blend)
+                        best_market_weights = market_weights.copy()
 
     diagnostics = {
         "validation_model_log_loss": avg_losses,
         "validation_ensemble_log_loss": best_loss,
         "ensemble_softmax_temperature": ensemble_softmax_temperature,
+        "market_regime_blend_weights": best_market_weights,
     }
     return fitted_models, EnsembleFit(
         model_names=list(model_names),
         model_weights=model_weights,
         calibration_temperature=float(best_temperature),
         pi_blend_weight=float(best_pi_blend),
+        market_regime_blend_weights=best_market_weights,
         diagnostics=diagnostics,
     )
 
@@ -400,6 +455,7 @@ def predict_with_ensemble(
     *,
     match_season: str | None = None,
     lower_division_df: pd.DataFrame | None = None,
+    market_odds: Dict[str, float | None] | None = None,
     top_league: str = "ENG Premier League",
     lower_division_league: str = "ENG Championship",
     prior_matches_for_transition: int = 10,
@@ -436,6 +492,22 @@ def predict_with_ensemble(
         ensemble_grid += weight * component_grids[name]
     ensemble_grid = clip_grid(ensemble_grid)
 
+    market_prior = {"home": 1.0 / 3.0, "draw": 1.0 / 3.0, "away": 1.0 / 3.0}
+    market_regime = "balanced"
+    market_blend_weight = 0.0
+    market_adjusted_grid = ensemble_grid
+    if market_odds is not None:
+        if all(market_odds.get(k) is not None for k in ["odds_home", "odds_draw", "odds_away"]):
+            market_prior = _market_prior_from_odds(
+                float(market_odds["odds_home"]),
+                float(market_odds["odds_draw"]),
+                float(market_odds["odds_away"]),
+            )
+            market_regime = _market_regime_from_prior(market_prior)
+            market_blend_weight = float(ensemble_fit.market_regime_blend_weights.get(market_regime, 0.0))
+            market_tilted = tilt_grid_to_1x2(ensemble_grid, market_prior)
+            market_adjusted_grid = blend_grids(ensemble_grid, market_tilted, market_blend_weight)
+
     pi_prior = _pi_prior_for_fixture(
         train_df_for_pi,
         home_team,
@@ -447,8 +519,8 @@ def predict_with_ensemble(
         top_league=top_league,
         lower_division_league=lower_division_league,
     )
-    tilted_grid = tilt_grid_to_1x2(ensemble_grid, pi_prior)
-    blended = blend_grids(ensemble_grid, tilted_grid, ensemble_fit.pi_blend_weight)
+    tilted_grid = tilt_grid_to_1x2(market_adjusted_grid, pi_prior)
+    blended = blend_grids(market_adjusted_grid, tilted_grid, ensemble_fit.pi_blend_weight)
     calibrated = temperature_scale_grid(blended, ensemble_fit.calibration_temperature)
 
     home_exp, away_exp = goal_expectations(calibrated)
@@ -460,6 +532,9 @@ def predict_with_ensemble(
         "joint_pmf": calibrated.tolist(),
         "goal_expectations": {"home": home_exp, "away": away_exp},
         "raw_1x2": one_x_two_from_grid(ensemble_grid),
+        "market_prior_1x2": market_prior,
+        "market_regime": market_regime,
+        "market_blend_weight": market_blend_weight,
         "pi_prior_1x2": pi_prior,
         "final_1x2": one_x_two_from_grid(calibrated),
         "ensemble_weights": ensemble_fit.model_weights,
