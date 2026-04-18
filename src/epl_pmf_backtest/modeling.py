@@ -523,6 +523,10 @@ def predict_with_ensemble(
     blended = blend_grids(market_adjusted_grid, tilted_grid, ensemble_fit.pi_blend_weight)
     calibrated = temperature_scale_grid(blended, ensemble_fit.calibration_temperature)
 
+    if market_odds is not None:
+        if all(market_odds.get(k) is not None for k in ["odds_home", "odds_draw", "odds_away"]):
+            calibrated = tilt_grid_to_1x2(calibrated, market_prior)
+
     home_exp, away_exp = goal_expectations(calibrated)
     return {
         "match_id": match_id,
